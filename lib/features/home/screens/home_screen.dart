@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../core/navigation/app_navigation_scaffold.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../ipa_chart/screens/ipa_chart_screen.dart';
 import '../../practice/screens/practice_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -16,10 +16,7 @@ class HomeScreen extends StatelessWidget {
             icon: const Icon(Icons.grid_view_rounded),
             tooltip: 'Tabela IPA',
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const IpaChartScreen()),
-              );
+              AppNavigationScaffold.switchTab(context, 3);
             },
           ),
         ],
@@ -96,10 +93,7 @@ class HomeScreen extends StatelessWidget {
               // Botão Principal: Praticar Agora
               InkWell(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PracticeScreen()),
-                  );
+                  AppNavigationScaffold.switchTab(context, 2);
                 },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
@@ -148,6 +142,72 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                       Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // Botão Secundário: Treinar Minha Frase
+              InkWell(
+                onTap: () {
+                  AppNavigationScaffold.switchTab(context, 1);
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.edit_note_rounded,
+                          color: AppTheme.primary,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Treinar Minha Frase',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Digite ou cole sua frase para análise instantânea',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: AppTheme.textSecondary,
+                        size: 22,
+                      ),
                     ],
                   ),
                 ),

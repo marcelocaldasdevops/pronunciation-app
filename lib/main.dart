@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'core/navigation/app_navigation_scaffold.dart';
 import 'core/services/preferences_service.dart';
 import 'core/theme/app_theme.dart';
-import 'features/home/screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +18,7 @@ class VocalisApp extends StatelessWidget {
       title: 'Vocalis • Treino Fonético',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const HomeScreen(),
+      home: const AppNavigationScaffold(),
     );
   }
 }
