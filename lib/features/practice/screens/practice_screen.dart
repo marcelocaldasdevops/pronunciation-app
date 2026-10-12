@@ -1,5 +1,7 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import '../../../core/models/pronunciation_result.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/portuguese_phonetic_service.dart';
@@ -25,6 +27,10 @@ class PracticeScreen extends StatefulWidget {
 class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProviderStateMixin {
   final AudioService _audioService = AudioService();
   final PronunciationServiceImpl _pronService = PronunciationServiceImpl();
+  final FlutterTts _tts = FlutterTts();
+
+  bool _isPlayingNative = false;
+  bool _isPlayingSlow = false;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -59,6 +65,22 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    _initTts();
+
+    if (widget.initialSentence != null && widget.initialSentence!.trim().isNotEmpty) {
+      final text = widget.initialSentence!.trim();
+      final exists = _practiceSentences.any(
+        (s) => s['text']?.toLowerCase() == text.toLowerCase(),
+      );
+      if (!exists) {
+        _practiceSentences.insert(0, {
+          'text': text,
+          'ipa': widget.initialIpa ?? '',
+          'translation': 'Frase personalizada',
+        });
+      }
+    }
+
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -69,8 +91,39 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
     );
   }
 
+  Future<void> _initTts() async {
+    await _tts.setLanguage('en-US');
+    await _tts.setVolume(1.0);
+    await _tts.setPitch(1.0);
+
+    _tts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() {
+          _isPlayingNative = false;
+          _isPlayingSlow = false;
+        });
+      }
+    });
+
+    _tts.setErrorHandler((msg) {
+      if (mounted) {
+        setState(() {
+          _isPlayingNative = false;
+          _isPlayingSlow = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sem voz disponível no dispositivo/navegador.'),
+            backgroundColor: AppTheme.scoreYellow,
+          ),
+        );
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _tts.stop();
     _pulseController.dispose();
     _audioService.dispose();
     super.dispose();
@@ -78,7 +131,75 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
 
   Map<String, String> get _currentSentence => _practiceSentences[_currentSentenceIndex];
 
+  Future<void> _playReferenceAudio({required bool slow}) async {
+    final text = _currentSentence['text']?.trim() ?? '';
+    if (text.isEmpty) return;
+
+    if ((slow && _isPlayingSlow) || (!slow && _isPlayingNative)) {
+      await _tts.stop();
+      if (mounted) {
+        setState(() {
+          _isPlayingNative = false;
+          _isPlayingSlow = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      await _audioService.stopPlayback();
+      await _tts.stop();
+
+      if (kIsWeb) {
+        final voices = await _tts.getVoices;
+        if (voices == null || (voices is List && voices.isEmpty)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Sem voz disponível no navegador. Instale ou ative o TTS do sistema.'),
+                backgroundColor: AppTheme.scoreYellow,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      setState(() {
+        _isPlayingNative = !slow;
+        _isPlayingSlow = slow;
+      });
+
+      await _tts.setSpeechRate(slow ? 0.30 : 0.48);
+      final result = await _tts.speak(text);
+      if (result != 1 && mounted) {
+        setState(() {
+          _isPlayingNative = false;
+          _isPlayingSlow = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPlayingNative = false;
+          _isPlayingSlow = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao reproduzir áudio: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _toggleRecording() async {
+    await _tts.stop();
+    if (_isPlayingNative || _isPlayingSlow) {
+      setState(() {
+        _isPlayingNative = false;
+        _isPlayingSlow = false;
+      });
+    }
+
     if (_audioService.isRecording) {
       setState(() => _isAnalyzing = true);
       try {
@@ -123,7 +244,10 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
   }
 
   void _nextSentence() {
+    _tts.stop();
     setState(() {
+      _isPlayingNative = false;
+      _isPlayingSlow = false;
       _currentSentenceIndex = (_currentSentenceIndex + 1) % _practiceSentences.length;
       _lastResult = null;
     });
@@ -310,30 +434,48 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
                       children: [
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppTheme.primary),
+                            side: BorderSide(
+                              color: _isPlayingNative ? AppTheme.accent : AppTheme.primary,
+                            ),
+                            backgroundColor: _isPlayingNative
+                                ? AppTheme.primary.withValues(alpha: 0.15)
+                                : null,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Reproduzindo áudio nativo de referência...')),
-                            );
-                          },
-                          icon: const Icon(Icons.volume_up, size: 18, color: AppTheme.primary),
-                          label: const Text('Ouvir Nativo (1x)', style: TextStyle(color: AppTheme.primary)),
+                          onPressed: () => _playReferenceAudio(slow: false),
+                          icon: Icon(
+                            _isPlayingNative ? Icons.stop_circle_rounded : Icons.volume_up,
+                            size: 18,
+                            color: AppTheme.primary,
+                          ),
+                          label: Text(
+                            _isPlayingNative ? 'Parar' : 'Ouvir Nativo (1x)',
+                            style: const TextStyle(color: AppTheme.primary),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppTheme.surfaceLight),
+                            side: BorderSide(
+                              color: _isPlayingSlow ? AppTheme.accent : AppTheme.surfaceLight,
+                            ),
+                            backgroundColor: _isPlayingSlow
+                                ? AppTheme.accent.withValues(alpha: 0.15)
+                                : null,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Reproduzindo em velocidade 0.75x (Lenta)...')),
-                            );
-                          },
-                          icon: const Icon(Icons.slow_motion_video, size: 18),
-                          label: const Text('Lento (0.75x)'),
+                          onPressed: () => _playReferenceAudio(slow: true),
+                          icon: Icon(
+                            _isPlayingSlow ? Icons.stop_circle_rounded : Icons.slow_motion_video,
+                            size: 18,
+                            color: _isPlayingSlow ? AppTheme.accent : null,
+                          ),
+                          label: Text(
+                            _isPlayingSlow ? 'Parar' : 'Lento (0.75x)',
+                            style: TextStyle(
+                              color: _isPlayingSlow ? AppTheme.accent : null,
+                            ),
+                          ),
                         ),
                       ],
                     ),
