@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/models/pronunciation_result.dart';
 import '../../../core/services/audio_service.dart';
@@ -41,6 +42,10 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
   String? _errorMessage;
   bool _isMicPermissionDenied = false;
 
+  bool _isPlayingMyVoice = false;
+  bool _isPlayingModel = false;
+  StreamSubscription<PlayerState>? _playerSub;
+
   PronunciationResult? _result;
   Timer? _recordTimer;
   int _recordSeconds = 0;
@@ -59,6 +64,16 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
   void initState() {
     super.initState();
     _initTts();
+
+    _playerSub = _audioService.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed || !state.playing) {
+        if (mounted && _isPlayingMyVoice) {
+          setState(() {
+            _isPlayingMyVoice = false;
+          });
+        }
+      }
+    });
 
     _pulseController = AnimationController(
       vsync: this,
@@ -96,7 +111,10 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     _tts.setStartHandler(() {
       if (mounted) {
         setState(() {
-          _screenState = SentenceScreenState.listening;
+          _isPlayingModel = true;
+          if (_screenState != SentenceScreenState.result) {
+            _screenState = SentenceScreenState.listening;
+          }
         });
       }
     });
@@ -104,11 +122,12 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     _tts.setCompletionHandler(() {
       if (mounted) {
         setState(() {
-          _screenState = _result != null
-              ? SentenceScreenState.result
-              : (_textController.text.trim().isNotEmpty
-                  ? SentenceScreenState.typing
-                  : SentenceScreenState.empty);
+          _isPlayingModel = false;
+          if (_screenState != SentenceScreenState.result) {
+            _screenState = _textController.text.trim().isNotEmpty
+                ? SentenceScreenState.typing
+                : SentenceScreenState.empty;
+          }
         });
       }
     });
@@ -116,9 +135,12 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     _tts.setErrorHandler((msg) {
       if (mounted) {
         setState(() {
-          _screenState = _textController.text.trim().isNotEmpty
-              ? SentenceScreenState.typing
-              : SentenceScreenState.empty;
+          _isPlayingModel = false;
+          if (_screenState != SentenceScreenState.result) {
+            _screenState = _textController.text.trim().isNotEmpty
+                ? SentenceScreenState.typing
+                : SentenceScreenState.empty;
+          }
           _errorMessage =
               'Sem voz disponível no dispositivo/navegador. Verifique se o serviço de síntese de voz (TTS) está ativo.';
         });
@@ -134,6 +156,7 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
 
   @override
   void dispose() {
+    _playerSub?.cancel();
     _recordTimer?.cancel();
     _pulseController.dispose();
     _textController.dispose();
@@ -142,12 +165,62 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     super.dispose();
   }
 
+  Future<void> _playMyVoice() async {
+    if (_isPlayingModel) {
+      await _tts.stop();
+      if (mounted) {
+        setState(() => _isPlayingModel = false);
+      }
+    }
+
+    if (_isPlayingMyVoice) {
+      await _audioService.stopPlayback();
+      if (mounted) {
+        setState(() => _isPlayingMyVoice = false);
+      }
+      return;
+    }
+
+    setState(() => _isPlayingMyVoice = true);
+    try {
+      await _audioService.playRecordedAudio();
+    } catch (e) {
+      debugPrint('Erro ao reproduzir voz gravada: $e');
+      if (mounted) {
+        setState(() => _isPlayingMyVoice = false);
+      }
+    }
+  }
+
   Future<void> _speakCurrentSentence() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    if (_isPlayingMyVoice) {
+      await _audioService.stopPlayback();
+      if (mounted) {
+        setState(() => _isPlayingMyVoice = false);
+      }
+    }
+
+    if (_isPlayingModel) {
+      await _tts.stop();
+      if (mounted) {
+        setState(() {
+          _isPlayingModel = false;
+          if (_screenState != SentenceScreenState.result) {
+            _screenState = SentenceScreenState.typing;
+          }
+        });
+      }
+      return;
+    }
+
     setState(() {
-      _screenState = SentenceScreenState.listening;
+      _isPlayingModel = true;
+      if (_screenState != SentenceScreenState.result) {
+        _screenState = SentenceScreenState.listening;
+      }
       _errorMessage = null;
     });
 
@@ -159,7 +232,10 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
         if (voices == null || (voices is List && voices.isEmpty)) {
           if (mounted) {
             setState(() {
-              _screenState = SentenceScreenState.typing;
+              _isPlayingModel = false;
+              if (_screenState != SentenceScreenState.result) {
+                _screenState = SentenceScreenState.typing;
+              }
               _errorMessage =
                   'Sem voz disponível no navegador. Instale ou ative o serviço de síntese de voz (TTS) do sistema.';
             });
@@ -180,14 +256,20 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
       final result = await _tts.speak(text);
       if (result != 1 && mounted) {
         setState(() {
-          _screenState = SentenceScreenState.typing;
+          _isPlayingModel = false;
+          if (_screenState != SentenceScreenState.result) {
+            _screenState = SentenceScreenState.typing;
+          }
           _errorMessage = 'Sem voz disponível para reproduzir este idioma.';
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _screenState = SentenceScreenState.typing;
+        _isPlayingModel = false;
+        if (_screenState != SentenceScreenState.result) {
+          _screenState = SentenceScreenState.typing;
+        }
         _errorMessage = 'Erro na síntese de voz: $e';
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -248,6 +330,8 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
       // Iniciar gravação
       await _tts.stop();
       await _audioService.stopPlayback();
+      _isPlayingMyVoice = false;
+      _isPlayingModel = false;
 
       final permitted = await _audioService.hasPermission();
       if (!permitted) {
@@ -298,6 +382,8 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     _tts.stop();
     _audioService.stopPlayback();
     setState(() {
+      _isPlayingMyVoice = false;
+      _isPlayingModel = false;
       _textController.clear();
       _result = null;
       _errorMessage = null;
@@ -311,6 +397,8 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     _tts.stop();
     _audioService.stopPlayback();
     setState(() {
+      _isPlayingMyVoice = false;
+      _isPlayingModel = false;
       _result = null;
       _errorMessage = null;
       _screenState = SentenceScreenState.typing;
@@ -1126,21 +1214,27 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => _audioService.playRecordedAudio(),
+                onPressed: _playMyVoice,
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
-                    color: AppTheme.surfaceLight.withValues(alpha: 0.8),
+                    color: _isPlayingMyVoice ? AppTheme.primary : AppTheme.surfaceLight.withValues(alpha: 0.8),
+                    width: _isPlayingMyVoice ? 1.5 : 1.0,
                   ),
-                  backgroundColor: AppTheme.surface,
+                  backgroundColor: _isPlayingMyVoice
+                      ? AppTheme.primary.withValues(alpha: 0.15)
+                      : AppTheme.surface,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.play_arrow_rounded, color: AppTheme.primary),
+                icon: Icon(
+                  _isPlayingMyVoice ? Icons.stop_circle_rounded : Icons.play_arrow_rounded,
+                  color: AppTheme.primary,
+                ),
                 label: Text(
-                  'Minha Voz',
+                  _isPlayingMyVoice ? 'Parar' : 'Minha Voz',
                   style: GoogleFonts.outfit(
-                    color: AppTheme.textPrimary,
+                    color: _isPlayingMyVoice ? AppTheme.primary : AppTheme.textPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1152,18 +1246,24 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
                 onPressed: _speakCurrentSentence,
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
-                    color: AppTheme.surfaceLight.withValues(alpha: 0.8),
+                    color: _isPlayingModel ? AppTheme.accent : AppTheme.surfaceLight.withValues(alpha: 0.8),
+                    width: _isPlayingModel ? 1.5 : 1.0,
                   ),
-                  backgroundColor: AppTheme.surface,
+                  backgroundColor: _isPlayingModel
+                      ? AppTheme.accent.withValues(alpha: 0.15)
+                      : AppTheme.surface,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.volume_up_rounded, color: AppTheme.accent),
+                icon: Icon(
+                  _isPlayingModel ? Icons.stop_circle_rounded : Icons.volume_up_rounded,
+                  color: AppTheme.accent,
+                ),
                 label: Text(
-                  'Modelo Nativo',
+                  _isPlayingModel ? 'Parar' : 'Modelo Nativo',
                   style: GoogleFonts.outfit(
-                    color: AppTheme.textPrimary,
+                    color: _isPlayingModel ? AppTheme.accent : AppTheme.textPrimary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
