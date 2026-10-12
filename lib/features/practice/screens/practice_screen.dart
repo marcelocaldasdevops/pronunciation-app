@@ -2,8 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/models/pronunciation_result.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/services/portuguese_phonetic_service.dart';
+import '../../../core/services/preferences_service.dart';
 import '../../../core/services/pronunciation_service.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/pronunciation_type_selector.dart';
 
 class PracticeScreen extends StatefulWidget {
   final String? initialSentence;
@@ -238,6 +241,10 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Seletor de Pronúncia
+              const PronunciationTypeSelector(),
+              const SizedBox(height: 16),
+
               // Card da Frase Alvo
               Container(
                 width: double.infinity,
@@ -267,15 +274,25 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(
-                      _currentSentence['ipa']!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        color: AppTheme.primary,
-                        fontFamily: 'monospace',
-                        letterSpacing: 0.5,
-                      ),
+                    ValueListenableBuilder<PronunciationType>(
+                      valueListenable: PreferencesService.instance.pronunciationTypeNotifier,
+                      builder: (context, currentType, _) {
+                        final isAportuguesada = currentType == PronunciationType.portugueseGuide;
+                        final guideText = isAportuguesada
+                            ? PortuguesePhoneticService.getGuideForSentence(_currentSentence['text']!)
+                            : _currentSentence['ipa']!;
+                        return Text(
+                          guideText,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isAportuguesada ? AppTheme.accent : AppTheme.primary,
+                            fontFamily: isAportuguesada ? null : 'monospace',
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -529,7 +546,27 @@ class _PracticeScreenState extends State<PracticeScreen> with SingleTickerProvid
                         color: wColor,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    ValueListenableBuilder<PronunciationType>(
+                      valueListenable: PreferencesService.instance.pronunciationTypeNotifier,
+                      builder: (context, currentType, _) {
+                        final isAportuguesada = currentType == PronunciationType.portugueseGuide;
+                        final guide = isAportuguesada
+                            ? (w.portugueseGuide ?? PortuguesePhoneticService.getGuideForWord(w.word))
+                            : (w.ipa.isNotEmpty ? w.ipa : '/${w.word}/');
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 4),
+                          child: Text(
+                            guide,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isAportuguesada ? AppTheme.accent : AppTheme.primary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: w.phonemes.map((ph) {

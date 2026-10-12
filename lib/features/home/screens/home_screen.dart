@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/navigation/app_navigation_scaffold.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/pronunciation_type_selector.dart';
 import '../../practice/screens/practice_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -88,7 +89,12 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
+
+              // Seletor de Tipo de Pronúncia
+              const PronunciationTypeSelector(),
+
+              const SizedBox(height: 20),
 
               // Botão Principal: Praticar Agora
               InkWell(

@@ -257,26 +257,28 @@ class _AppNavigationScaffoldState extends State<AppNavigationScaffold> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'VOCALIS',
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                        color: AppTheme.textPrimary,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'VOCALIS',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Treino Fonético',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AppTheme.textSecondary,
+                      Text(
+                        'Treino Fonético',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -402,12 +404,16 @@ class _AppNavigationScaffoldState extends State<AppNavigationScaffold> {
                 color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
               ),
               const SizedBox(width: 14),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+                  ),
                 ),
               ),
             ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/portuguese_phonetic_service.dart';
 import '../../../core/theme/app_theme.dart';
 
 class IpaPhonemeItem {
@@ -124,8 +125,12 @@ class _IpaChartScreenState extends State<IpaChartScreen> {
                           style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                         Text(
-                          item.category,
-                          style: const TextStyle(color: AppTheme.textSecondary),
+                          'Guia BR: "${PortuguesePhoneticService.getGuideForWord(item.exampleWord)}" • ${item.category}',
+                          style: const TextStyle(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
