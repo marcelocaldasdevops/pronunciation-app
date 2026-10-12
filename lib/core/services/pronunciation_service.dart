@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../models/pronunciation_result.dart';
+import 'portuguese_phonetic_service.dart';
 
 abstract class PronunciationAssessmentService {
   Future<PronunciationResult> evaluatePronunciation({
@@ -106,6 +107,7 @@ class PronunciationServiceImpl implements PronunciationAssessmentService {
         words.add(WordScore(
           word: wordStr,
           ipa: phonemes.map((p) => p.phoneme).join(),
+          portugueseGuide: PortuguesePhoneticService.getGuideForWord(wordStr),
           score: wordAccuracy,
           phonemes: phonemes,
         ));
@@ -164,6 +166,7 @@ class PronunciationServiceImpl implements PronunciationAssessmentService {
       words.add(WordScore(
         word: rawWord,
         ipa: phonemesIpa.join(),
+        portugueseGuide: PortuguesePhoneticService.getGuideForWord(cleanWord),
         score: wordAvg,
         phonemes: phonemeScores,
       ));

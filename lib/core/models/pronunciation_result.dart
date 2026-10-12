@@ -51,12 +51,14 @@ class PhonemeScore {
 class WordScore {
   final String word;
   final String ipa;
+  final String? portugueseGuide;
   final double score;
   final List<PhonemeScore> phonemes;
 
   const WordScore({
     required this.word,
     required this.ipa,
+    this.portugueseGuide,
     required this.score,
     required this.phonemes,
   });
