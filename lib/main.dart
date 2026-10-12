@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'core/services/preferences_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/home/screens/home_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await PreferencesService.init();
   runApp(const VocalisApp());
 }
 
