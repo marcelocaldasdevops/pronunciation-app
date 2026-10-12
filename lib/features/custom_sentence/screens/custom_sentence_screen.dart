@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -118,7 +119,15 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
           _screenState = _textController.text.trim().isNotEmpty
               ? SentenceScreenState.typing
               : SentenceScreenState.empty;
+          _errorMessage =
+              'Sem voz disponível no dispositivo/navegador. Verifique se o serviço de síntese de voz (TTS) está ativo.';
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sem voz disponível no dispositivo/navegador.'),
+            backgroundColor: AppTheme.scoreYellow,
+          ),
+        );
       }
     });
   }
@@ -137,12 +146,50 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    setState(() {
+      _screenState = SentenceScreenState.listening;
+      _errorMessage = null;
+    });
+
     try {
       await _audioService.stopPlayback();
+
+      if (kIsWeb) {
+        final voices = await _tts.getVoices;
+        if (voices == null || (voices is List && voices.isEmpty)) {
+          if (mounted) {
+            setState(() {
+              _screenState = SentenceScreenState.typing;
+              _errorMessage =
+                  'Sem voz disponível no navegador. Instale ou ative o serviço de síntese de voz (TTS) do sistema.';
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Sem voz disponível no navegador. Ative a síntese de voz (TTS).',
+                ),
+                backgroundColor: AppTheme.scoreYellow,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
       await _tts.stop();
-      await _tts.speak(text);
+      final result = await _tts.speak(text);
+      if (result != 1 && mounted) {
+        setState(() {
+          _screenState = SentenceScreenState.typing;
+          _errorMessage = 'Sem voz disponível para reproduzir este idioma.';
+        });
+      }
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _screenState = SentenceScreenState.typing;
+        _errorMessage = 'Erro na síntese de voz: $e';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro na síntese de voz: $e')),
       );
@@ -176,7 +223,7 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
       try {
         final bytes = await _audioService.stopRecording();
         if (bytes == null || bytes.isEmpty) {
-          throw Exception('Nenhum áudio detectado. Fale próximo ao microfone.');
+          throw Exception('Nenhuma fala detectada. Verifique se o microfone está captando o áudio e fale claramente.');
         }
 
         final result = await _pronService.evaluatePronunciation(
@@ -188,6 +235,7 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
         setState(() {
           _result = result;
           _screenState = SentenceScreenState.result;
+          _errorMessage = null;
         });
       } catch (e) {
         if (!mounted) return;
@@ -207,7 +255,7 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
           _isMicPermissionDenied = true;
           _screenState = SentenceScreenState.error;
           _errorMessage =
-              'Permissão de microfone negada. Conceda acesso nas configurações do sistema para avaliar sua pronúncia.';
+              'Permissão de microfone negada. Conceda acesso nas configurações do sistema ou do navegador para avaliar sua pronúncia.';
         });
         return;
       }
@@ -301,7 +349,7 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
                 _buildPhoneticPreviewCard(),
 
               // Mensagem / Banner de Erro & Permissão
-              if (_screenState == SentenceScreenState.error && _errorMessage != null)
+              if (_errorMessage != null)
                 _buildErrorBanner(),
 
               // Área de Estados Interativos
@@ -522,6 +570,18 @@ class _CustomSentenceScreenState extends State<CustomSentenceScreen>
                     fontWeight: FontWeight.bold,
                     color: AppTheme.scoreRed,
                   ),
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _errorMessage = null;
+                  });
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.close_rounded, size: 18, color: AppTheme.textSecondary),
                 ),
               ),
             ],
